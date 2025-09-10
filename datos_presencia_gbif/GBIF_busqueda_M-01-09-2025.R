@@ -1,19 +1,63 @@
-setwd("F:/Doctorado/asesorias")
+#getwd()
+#setwd('C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif')
+#setwd("F:/Doctorado/asesorias")
 
-# librerias
-install.packages("reticulate") # si no lo tienes instalado
+# =========================================================
+# Script completo: Conexión R ↔ Python ↔ Google Earth Engine
+# =========================================================
+
+# 1. Limpiar entorno y forzar GC
+rm(list = ls())
+gc()
+
+# 2. Cargar reticulate
+if (!requireNamespace("reticulate", quietly = TRUE)) install.packages("reticulate")
 library(reticulate)
-# 1. Instala miniconda en tu usuario (solo la primera vez)
-install_miniconda()
 
-# 2. Crea el entorno r-reticulate
-conda_create("r-reticulate")
+# 3. Configurar entorno conda
+conda_path <- "C:/Users/usuario/miniconda3/Scripts/conda.exe"
+reticulate::use_condaenv("r-reticulate", conda = conda_path, required = TRUE)
 
-# 3. Instala la librería de Google Earth Engine en ese entorno
-conda_install("r-reticulate", "earthengine-api", pip = TRUE)
+# 4. Instalar o actualizar earthengine-api
+message("Comprobando instalación de earthengine-api...")
+tryCatch({
+  reticulate::py_install("earthengine-api", pip = TRUE)
+  reticulate::py_run_string("import pip; pip.main(['install','--upgrade','earthengine-api'])")
+  message("✅ earthengine-api instalado/actualizado correctamente.")
+}, error = function(e) {
+  message("⚠️ No se pudo instalar/actualizar earthengine-api: ", e$message)
+})
 
-# 4. Activa el entorno
-use_condaenv("r-reticulate", required = TRUE)
+# 5. Cargar rgee y limpiar credenciales antes de iniciar sesión
+if (!requireNamespace("rgee", quietly = TRUE)) install.packages("rgee")
+library(rgee)
+
+message("🧹 Limpiando credenciales previas...")
+ee_clean_user_credentials()
+unlink("~/.config/earthengine/", recursive = TRUE, force = TRUE)
+unlink("~/.config/rgee/", recursive = TRUE, force = TRUE)
+
+# 6. Inicializar (abre navegador para autenticación)
+message("🌐 Autenticando con Google Earth Engine...")
+ee_Initialize(drive = TRUE)
+
+# 7. Verificar archivo de sesión y usuario
+cred_path <- tryCatch(rgee:::ee_get_earthengine_path(), error = function(e) NULL)
+if (!is.null(cred_path)) {
+  session_file <- file.path(cred_path, "rgee_sessioninfo.txt")
+  if (file.exists(session_file)) {
+    message("✅ Sesión creada correctamente en: ", session_file)
+    print(ee_user_info())
+  } else {
+    stop("❌ No se creó rgee_sessioninfo.txt. Repite ee_Initialize(drive = TRUE).")
+  }
+} else {
+  stop("❌ No se encontró el directorio de credenciales. Repite autenticación.")
+}
+
+message("✅ Conexión establecida correctamente. ¡Listo para usar rgee!")
+
+
 library(readxl)
 library(rgbif)
 library(dplyr)
@@ -48,7 +92,7 @@ search_synonyms <- function(sp) {
 # aplicación de la función a las especies (Giraldo et al. 2018)
 synonym_search <- lapply(lista_sp, search_synonyms)
 all_synonyms <- bind_rows(synonym_search)
-#saveRDS(all_synonyms, "all_synonyms.rds") # guardar los sinónimos en RDS
+saveRDS(all_synonyms, "all_synonyms.rds") # guardar los sinónimos en RDS
 all_synonyms <- readRDS("all_synonyms.rds") # cargar los datos para el siguiente procesamientos
 # union de listas de especies (Giraldo et al. 2018) y sinónimos (GBIF)
 synonym_list <- unique(sort(all_synonyms$canonicalName))
@@ -64,8 +108,11 @@ result <- occ_data(scientificName = all_taxa, limit = 5000, hasCoordinate = TRUE
 data_list <- lapply(result, function(x) if (!is.null(x$data)) x$data else NULL)
 data_list <- Filter(Negate(is.null), data_list) 
 records <- bind_rows(data_list, .id = "scientificName")
-#saveRDS(records, "GBIF_2025-03-23.rds")# activar para guardar el archivo en RDS
-records <- readRDS("GBIF_2025-03-23.rds") # cargar el archivo para el siguiente proceso
+saveRDS(records, "GBIF_2025-09-08.rds")# activar para guardar el archivo en RDS
+
+############SE PUEDE INICIAR LA EJECUCIÓN DESDE ESTE PUNTO #################
+
+records <- readRDS("GBIF_2025-09-08.rds") # cargar el archivo para el siguiente proceso
 
 # Actualización del nombre de las especies según GBIF Backbone Taxonomy
 canonical_names <- all_synonyms$canonicalName[match(records$scientificName, all_synonyms$canonicalName)]
@@ -83,9 +130,9 @@ sp <- data.frame(subset(records, scientificName == "Dichotomius agenor"))
 #
 # mapas base
 #ecoreg <- st_read("F:/Capas/World/wwf/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
-ecoreg <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/dungbeetles/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
-
+ecoreg <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
 ecoreg <- st_make_valid(ecoreg)
+
 col <- ne_countries(country = "colombia", returnclass = "sf")
 # col_dem
 colombia <- st_as_sf(st_sfc(st_polygon(list(rbind(
@@ -112,13 +159,8 @@ sp <- sp[!(sp$decimalLongitude == -76.09989 & sp$decimalLatitude == 8.039917), ]
 sp$coordinates <- paste(sp$decimalLatitude, sp$decimalLongitude, sep="_")
 sp <- sp[!is.na(sp$coordinates) & !duplicated(sp[c("scientificName", "coordinates")]), ]
 
-# 
-library(rgee)
-
 # Inicializar GEE
 reticulate::use_condaenv("r-reticulate", required = TRUE) # enlace al entorno especifico de mi pc a conda de python
-
-ee_Initialize()
 
 # Registros a formato GEE
 sp_clean <- sp[, c("decimalLongitude", "decimalLatitude", "scientificName")]
