@@ -1,1 +1,2 @@
 datos_presencia_gbif/Ecoregions2017/Ecoregions2017.shp filter=lfs diff=lfs merge=lfs -text
+*.shp filter=lfs diff=lfs merge=lfs -text
