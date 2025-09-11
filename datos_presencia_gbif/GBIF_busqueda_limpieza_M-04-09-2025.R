@@ -1,6 +1,6 @@
 #setwd("F:/Doctorado/asesorias")
-#setwd('C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif')
-setwd('D:/Usuario/Desktop/ROBERTO_CEBALLOS/Maestr铆a/SEMESTRE III/PROYECTO INTEGRADOR/beetle-habitat-prediction/datos_presencia_gbif')
+setwd('C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif')
+
 
 # librerias
 
@@ -15,17 +15,15 @@ library(rnaturalearthdata)
 library(elevatr)
 library(sf)
 
-################################################################################
-################# obtenci贸n de registros biol贸gicos ############################
+################# 1. Obtenci髇 de registros biol骻icos ############################
 
-# carga de datos y obtenci贸n de la lista de especies (Giraldo et al. 2018)
+# carga de datos y obtenci髇 de la lista de especies (Giraldo et al. 2018)
 lista_sp <- read_excel("./ganaderos_lista.xlsx", sheet="species")
 lista_sp <- subset(lista_sp, lista_sp$taxonRank =="species")
 lista_sp <- sort(unique(lista_sp$scientificName, decreasing = FALSE))
 
-
-# consulta de posibles sin贸nimos de las especies usando GBIF Backbone Taxonomy
-# funci贸n para buscar sinonimos de cada especie en GBIF
+# consulta de posibles sin髇imos de las especies usando GBIF Backbone Taxonomy
+# funci髇 para buscar sinonimos de cada especie en GBIF
 search_synonyms <- function(sp) {
   result <- name_lookup(query = sp, rank = c("species", "subspecies"), status = "SYNONYM")$data
   if (!is.null(result) && nrow(result) > 0) {
@@ -36,7 +34,7 @@ search_synonyms <- function(sp) {
   }
 }
 
-# aplicaci贸n de la funci贸n a las especies (Giraldo et al. 2018)
+# aplicaci髇 de la funci髇 a las especies (Giraldo et al. 2018)
 synonym_search <- lapply(lista_sp, search_synonyms)
 all_synonyms <- bind_rows(synonym_search)
 #saveRDS(all_synonyms, "all_synonyms.rds") # guardar los sin贸nimos en RDS
@@ -73,9 +71,7 @@ records <- records %>%
 sp <- data.frame(subset(records, scientificName == "Dichotomius agenor"))
 #
 # mapas base
-#ecoreg <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
-ecoreg <- st_read("D:/Usuario/Desktop/ROBERTO_CEBALLOS/Maestr铆a/SEMESTRE III/PROYECTO INTEGRADOR/beetle-habitat-prediction/datos_presencia_gbif/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
-
+ecoreg <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
 ecoreg <- st_make_valid(ecoreg)
 col <- ne_countries(country = "colombia", returnclass = "sf")
 # col_dem
@@ -89,7 +85,7 @@ col_dem <- rast(col_dem)
 # Visualizaci贸n de los registros  
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevaci贸n") +
+  scale_fill_viridis_c(name = "Elevaci髇") +
   geom_sf(data = col, fill = "lightgrey", color = "black", alpha = 0.1) +
   geom_point(data = sp, aes(x = decimalLongitude, y = decimalLatitude), color = "darkblue")
 
@@ -103,11 +99,7 @@ sp <- sp[!(sp$decimalLongitude == -76.09989 & sp$decimalLatitude == 8.039917), ]
 sp$coordinates <- paste(sp$decimalLatitude, sp$decimalLongitude, sep="_")
 sp <- sp[!is.na(sp$coordinates) & !duplicated(sp[c("scientificName", "coordinates")]), ]
 
-
-
-###################################################################################################################
-############ CONFIGURACI脫N E INICIALIZACI脫N DE GOOGLE EARTH ENGINE (GEE) EN R #####################################
-
+# 
 library(rgee)
 Sys.setenv(RETICULATE_MINICONDA_PATH = "C:/Users/usuario/miniconda3")
 library(reticulate)
@@ -144,14 +136,11 @@ elev_ee <- DEM$reduceRegions(
 elev_sf <- ee_as_sf(elev_ee)
 #saveRDS(elev_sf, "./elev_ALOS.rds")
 
-
-############################FIN (GEE)############################################
-################################################################################
-
-
 # Leer el archivo de elevaci贸n
 elev_sf <- readRDS("./elev_ALOS.rds")
 
+# Revisar nombres de columnas
+print(names(elev_sf))  # Debe incluir "elev_ALOS"
 
 # Convertir sp a sf
 library(sf)
@@ -195,7 +184,9 @@ if (!"elev_ALOS" %in% names(sp_df)) {
 # Filtrar por elevaci贸n
 sp_df <- sp_df %>%
   filter(elev_ALOS >= 0, elev_ALOS <= 1600)
-
+sum(is.na(sp$elev_ALOS))
+nrow(sp)  # original
+nrow(sp_df) 
 geom_spatraster(data = col_dem)   # <-- REVISAR
 
 class(col_dem)
