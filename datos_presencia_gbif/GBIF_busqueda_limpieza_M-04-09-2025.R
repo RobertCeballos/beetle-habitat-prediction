@@ -92,7 +92,7 @@ ggplot() +
 ## limpieza de puntos at√≠picos basados en literatura (Montoya et al. 2021)
 sp <- sp[!(sp$scientificName=="Dichotomius agenor" & sp$decimalLongitude <= -81),] # remove records greater than  81 Long D agenor
 sp <- sp[!(sp$scientificName=="Dichotomius agenor" & # Remove D. agenor departments based on Montoya et al. 2021
-             sp$stateProvince %in% c("Boyac√°",  "Meta","Casanare", "Vichada", "Boyac√É¬°")), ] # 1824 records
+             sp$stateProvince %in% c("Boyac·",  "Meta","Casanare", "Vichada", "Boyac·")), ] # 1824 records
 sp <- sp[!(sp$decimalLongitude == -76.09989 & sp$decimalLatitude == 8.039917), ] # remove Urab√° recrord, 1823 records
 
 # limpieza de duplicados 745 records
@@ -194,7 +194,7 @@ print(col_dem)
 
 ggplot() +
     geom_spatraster(data = col_dem) +
-    scale_fill_viridis_c(name = "Elevaci√≥n") +
+    scale_fill_viridis_c(name = "ElevaciÛn") +
   geom_sf(data = col, fill = "gray", color = "black", alpha = 0.1) +
   geom_point(data = sp_df, aes(x = decimalLongitude, y = decimalLatitude), 
              color = "white", size = 3)
@@ -208,7 +208,7 @@ eco_col <- ecoreg[lengths(eco_col) > 0, ]
 
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevaci√≥n") +
+  scale_fill_viridis_c(name = "ElevaciÛn") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = eco_col, fill = "darkred", color = "black", alpha=0.1) +
   geom_point(data = sp_df, aes(x = decimalLongitude, y = decimalLatitude), 
@@ -225,7 +225,7 @@ M_buffer50k <- st_buffer(sp_df_AEA, dist = 50000)
 
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevaci√≥n") +
+  scale_fill_viridis_c(name = "ElevaciÛn") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = M_buffer50k, fill = "darkred", color = "black", alpha=0.7) +
   geom_sf(data = sp_df_AEA, color = "white", size = 3)
@@ -234,13 +234,107 @@ M_buffer50k_union <- st_union(M_buffer50k)
 
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevaci√≥n") +
+  scale_fill_viridis_c(name = "ElevaciÛn") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = M_buffer50k_union, fill = "darkred", color = "black", alpha=0.7) +
   geom_point(data = sp, aes(x = decimalLongitude, y = decimalLatitude), color = "white", size=3)
 
 ################################################################################
+#########6. Enmascarar capas ambientales seg˙n ·rea de calibraciÛn.#############
 
 
+# --- 6.1. Guardar las ·reas de calibraciÛn (M) ---
+st_write(eco_col, 
+         "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_ecoregiones.shp", 
+         delete_layer = TRUE)
 
+st_write(M_buffer50k_union, 
+         "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_buffer50km.shp", 
+         delete_layer = TRUE)
+
+# --- 6.2. Cargar variables bioclim·ticas de WorldClim 2.1 ---
+variables <- terra::rast(list.files("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/WORLDCLIM",
+                                    pattern = "tif$", full.names = TRUE))
+
+# Para ecoregiones
+M_ecoreg_vect <- terra::project(M_ecoreg_vect, crs(variables))
+
+# Para buffer
+M_buffer_vect <- terra::project(M_buffer_vect, crs(variables))
+
+# --- 6.3. Recorte y enmascarado usando M por ecorregiones ---
+M_ecoreg <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_ecoregiones.shp")
+M_ecoreg_vect <- vect(M_ecoreg) # convertir a SpatVector
+
+variables_ecoreg_crop <- terra::crop(variables, M_ecoreg_vect)
+variables_ecoreg_mask <- terra::mask(variables_ecoreg_crop, M_ecoreg_vect)
+
+# --- 6.3. Recorte y enmascarado usando M por buffer ---
+M_buffer <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_buffer50km.shp")
+M_buffer_vect <- vect(M_buffer)
+
+variables_buffer_crop <- terra::crop(variables, M_buffer_vect)
+variables_buffer_mask <- terra::mask(variables_buffer_crop, M_buffer_vect)
+
+crs(variables)
+crs(M_ecoreg_vect)
+
+# --- 6.4. Guardar resultados en carpetas separadas ---
+dir.create("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_ecoregiones", showWarnings = FALSE, recursive = TRUE)
+dir.create("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_buffer", showWarnings = FALSE, recursive = TRUE)
+
+terra::writeRaster(variables_ecoreg_mask,
+                   filename = paste0("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_ecoregiones/", names(variables_ecoreg_mask), ".tif"),
+                   overwrite = TRUE)
+
+terra::writeRaster(variables_buffer_mask,filename = paste0("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_buffer/", names(variables_buffer_mask), ".tif"),overwrite = TRUE)
+
+# --- 6.5. (Opcional) Visualizar una variable para comprobar ---
+plot(variables_ecoreg_mask[[1]], main = "BIO1 - Recortado por ecorregiones")
+plot(M_ecoreg_vect, add = TRUE)
+
+plot(variables_buffer_mask[[1]], main = "BIO1 - Recortado por buffer")
+plot(M_buffer_vect, add = TRUE)
+
+################################################################################
+
+# --- 1. Cargar los datos filtrados de presencia ---
+# (Aseg˙rate que sp_df contiene decimalLongitude y decimalLatitude ya filtrados)
+# y que 'variables' es tu SpatRaster con BIO1 a BIO19 ya recortado a las ·reas de calibraciÛn.
+
+# --- 2. Convertir a SpatVector en CRS de variables ---
+sp_vect <- vect(sp_df, geom = c("decimalLongitude", "decimalLatitude"), crs = crs(variables))
+
+
+# Extraer valores para cada punto
+puntos_ecoreg <- terra::extract(variables_ecoreg_mask, sp_vect)
+
+# Combinar con el dataframe original de presencias
+presencias_ecoreg <- cbind(sp_df, puntos_ecoreg)
+
+# Guardar CSV
+write.csv(
+  presencias_ecoreg,
+  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/presencias_variables_ecoregiones.csv",
+  row.names = FALSE
+)
+
+
+# Extraer valores para cada punto
+puntos_buffer <- terra::extract(variables_buffer_mask, sp_vect)
+
+# Combinar con el dataframe original de presencias
+presencias_buffer <- cbind(sp_df, puntos_buffer)
+
+# Guardar CSV
+write.csv(
+  presencias_buffer,
+  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/presencias_variables_buffer50km.csv",
+  row.names = FALSE
+)
+
+# --- 5. VerificaciÛn r·pida ---
+cat("CSV generados en la carpeta 'datos_presencia_gbif'\n")
+cat("Filas ecoregiones:", nrow(presencias_ecoreg), "\n")
+cat("Filas buffer 50 km:", nrow(presencias_buffer), "\n")
