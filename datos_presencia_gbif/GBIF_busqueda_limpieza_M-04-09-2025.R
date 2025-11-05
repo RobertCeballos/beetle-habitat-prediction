@@ -770,7 +770,6 @@ if (!is.na(k_auto) && k_auto >= 1) {
   message("?????? No se alcanzó el umbral de varianza especificado; no se exportaron PCs 'auto'.")
 }
 
-
 # =========================
 # 9) Sugerencias para MaxEnt
 # =========================
