@@ -1,6 +1,11 @@
-#setwd("F:/Doctorado/asesorias")
-setwd('C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif')
+#getwd()
 
+# Definir la ruta base 
+oficina_path <- "D:/Usuario/Desktop/ROBERTO_CEBALLOS/MaestrÃ­a/SEMESTRE III/PROYECTO INTEGRADOR/"
+mayra_path <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/"
+base_path <- oficina_path;
+
+setwd(base_path)
 
 # librerias
 
@@ -19,15 +24,15 @@ library(readr)
 library(usdm)
 library(stats)
 
-################# 1. Obtención de registros biológicos ############################
+################# 1. Obtenci?n de registros biol?gicos ############################
 
-# carga de datos y obtención de la lista de especies (Giraldo et al. 2018)
+# carga de datos y obtenci?n de la lista de especies (Giraldo et al. 2018)
 lista_sp <- read_excel("./ganaderos_lista.xlsx", sheet="species")
 lista_sp <- subset(lista_sp, lista_sp$taxonRank =="species")
 lista_sp <- sort(unique(lista_sp$scientificName, decreasing = FALSE))
 
-# consulta de posibles sinónimos de las especies usando GBIF Backbone Taxonomy
-# función para buscar sinonimos de cada especie en GBIF
+# consulta de posibles sin?nimos de las especies usando GBIF Backbone Taxonomy
+# funci?n para buscar sinonimos de cada especie en GBIF
 search_synonyms <- function(sp) {
   result <- name_lookup(query = sp, rank = c("species", "subspecies"), status = "SYNONYM")$data
   if (!is.null(result) && nrow(result) > 0) {
@@ -38,7 +43,7 @@ search_synonyms <- function(sp) {
   }
 }
 
-# aplicación de la función a las especies (Giraldo et al. 2018)
+# aplicaci?n de la funci?n a las especies (Giraldo et al. 2018)
 synonym_search <- lapply(lista_sp, search_synonyms)
 all_synonyms <- bind_rows(synonym_search)
 #saveRDS(all_synonyms, "all_synonyms.rds") # guardar los sinÃ³nimos en RDS
@@ -75,7 +80,8 @@ records <- records %>%
 sp <- data.frame(subset(records, scientificName == "Dichotomius agenor"))
 #
 # mapas base
-ecoreg <- st_read("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/Ecoregions2017/Ecoregions2017.shp") # Capa de ecoregiones WWF 2017 
+ecoreg <- st_read(file.path(base_path,"beetle-habitat-prediction", "datos_presencia_gbif", "Ecoregions2017", "Ecoregions2017.shp")) # Capa de ecoregiones WWF 2017 
+
 ecoreg <- st_make_valid(ecoreg)
 col <- ne_countries(country = "colombia", returnclass = "sf")
 # col_dem
@@ -83,20 +89,20 @@ colombia <- st_as_sf(st_sfc(st_polygon(list(rbind(
   c(-80, -5), c(-80, 15), c(-60, 15), c(-60, -4), c(-80, -5)
 ))), crs = 4326))
 col_dem <- get_elev_raster(locations = colombia, z = 6, clip = "locations")
-plot(col_dem, main = "Modelo de Elevación Digital - Colombia")
+plot(col_dem, main = "Modelo de Elevaci?n Digital - Colombia")
 col_dem <- rast(col_dem)
 
-# Visualización de los registros  
+# Visualizaci?n de los registros  
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevación") +
+  scale_fill_viridis_c(name = "Elevaci?n") +
   geom_sf(data = col, fill = "lightgrey", color = "black", alpha = 0.1) +
   geom_point(data = sp, aes(x = decimalLongitude, y = decimalLatitude), color = "darkblue")
 
-## limpieza de puntos atípicos basados en literatura (Montoya et al. 2021)
+## limpieza de puntos at?picos basados en literatura (Montoya et al. 2021)
 sp <- sp[!(sp$scientificName=="Dichotomius agenor" & sp$decimalLongitude <= -81),] # remove records greater than  81 Long D agenor
 sp <- sp[!(sp$scientificName=="Dichotomius agenor" & # Remove D. agenor departments based on Montoya et al. 2021
-             sp$stateProvince %in% c("Boyacá",  "Meta","Casanare", "Vichada", "Boyacá")), ] # 1824 records
+             sp$stateProvince %in% c("Boyac?",  "Meta","Casanare", "Vichada", "Boyac?")), ] # 1824 records
 sp <- sp[!(sp$decimalLongitude == -76.09989 & sp$decimalLatitude == 8.039917), ] # remove UrabÃ¡ recrord, 1823 records
 
 # limpieza de duplicados 745 records
@@ -113,7 +119,7 @@ print(names(elev_sf))  # Debe incluir "elev_ALOS"
 # Convertir sp a sf
 sp_sf <- st_as_sf(sp, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
 
-# Asegurar que elev_sf está en el mismo CRS
+# Asegurar que elev_sf est? en el mismo CRS
 elev_sf <- st_transform(elev_sf, crs = 4326)
 
 # Unir elevaciones al dataset original por proximidad espacial
@@ -123,7 +129,7 @@ sp_joined <- st_join(sp_sf, elev_sf["elev_ALOS"], join = st_nearest_feature)
 AEAstring <- "+proj=aea +lat_1=-4.2 +lat_2=12.5 +lat_0=4.1 +lon_0=-73 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 sp_aea <- st_transform(sp_joined, crs = AEAstring)
 
-# Filtrar puntos por distancia mínima de 1 km
+# Filtrar puntos por distancia m?nima de 1 km
 keep <- rep(TRUE, nrow(sp_aea))
 for (i in seq_len(nrow(sp_aea))) {
   if (!keep[i]) next
@@ -143,7 +149,7 @@ sp_df <- as.data.frame(sp_aea_filtered)
 
 # Confirmar que elev_ALOS sigue presente
 if (!"elev_ALOS" %in% names(sp_df)) {
-  stop("elev_ALOS se perdió en la conversión a data.frame. Revisa antes de filtrar.")
+  stop("elev_ALOS se perdi? en la conversi?n a data.frame. Revisa antes de filtrar.")
 }
 
 # Filtrar por elevaciÃ³n
@@ -159,14 +165,14 @@ print(col_dem)
 
 ggplot() +
     geom_spatraster(data = col_dem) +
-    scale_fill_viridis_c(name = "Elevación") +
+    scale_fill_viridis_c(name = "Elevaci?n") +
   geom_sf(data = col, fill = "gray", color = "black", alpha = 0.1) +
   geom_point(data = sp_df, aes(x = decimalLongitude, y = decimalLatitude), 
              color = "white", size = 3)
 
 
 ###
-# extracción del "area de movilidad (M)" basado en regiones biogeográficas (WWWF ecoregions)
+# extracci?n del "area de movilidad (M)" basado en regiones biogeogr?ficas (WWWF ecoregions)
 ###
 sp_sf <- st_as_sf(sp, coords = c("decimalLongitude", "decimalLatitude"), crs = st_crs(ecoreg)) 
 eco_col <- st_intersects(ecoreg, sp_sf)
@@ -174,7 +180,7 @@ eco_col <- ecoreg[lengths(eco_col) > 0, ]
 
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevación") +
+  scale_fill_viridis_c(name = "Elevaci?n") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = eco_col, fill = "darkred", color = "black", alpha=0.1) +
   geom_point(data = sp_df, aes(x = decimalLongitude, y = decimalLatitude), 
@@ -191,7 +197,7 @@ M_buffer50k <- st_buffer(sp_df_AEA, dist = 50000)
 
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevación") +
+  scale_fill_viridis_c(name = "Elevaci?n") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = M_buffer50k, fill = "darkred", color = "black", alpha=0.7) +
   geom_sf(data = sp_df_AEA, color = "white", size = 3)
@@ -200,37 +206,38 @@ M_buffer50k_union <- st_union(M_buffer50k)
 
 ggplot() +
   geom_spatraster(data = col_dem) +
-  scale_fill_viridis_c(name = "Elevación") +
+  scale_fill_viridis_c(name = "Elevaci?n") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = col, fill = NA, color = "black") +
   geom_sf(data = M_buffer50k_union, fill = "darkred", color = "black", alpha=0.7) +
   geom_point(data = sp, aes(x = decimalLongitude, y = decimalLatitude), color = "white", size=3)
 
 #################################################################################################
-######### 6. Enmascarar capas ambientales según área de calibración #############################
+######### 6. Enmascarar capas ambientales seg?n ?rea de calibraci?n #############################
 #################################################################################################
 
-# --- . Guardar las áreas de calibración (M) ---
+# --- . Guardar las ?reas de calibraci?n (M) ---
 st_write(
   eco_col,
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_ecoregiones.shp",
+  file.path(base_path, "beetle-habitat-prediction", "datos_presencia_gbif", "AREAS_CALIBRACION", "M_ecoregiones.shp"),
   delete_layer = TRUE
 )
 
 st_write(
   M_buffer50k_union,
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_buffer50km.shp",
+  file.path(base_path, "beetle-habitat-prediction", "datos_presencia_gbif", "AREAS_CALIBRACION", "M_buffer50km.shp"),
   delete_layer = TRUE
 )
 
-# --- . Cargar variables bioclimáticas de WorldClim 2.1 ---
+
+# --- . Cargar variables bioclim?ticas de WorldClim 2.1 ---
 archivos <- list.files(
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/WORLDCLIM",
+  path = file.path(base_path, "WORLDCLIM"),
   pattern = "tif$",
   full.names = TRUE
 )
 
-# Ordenar archivos de manera numérica (bio_1, bio_2, ..., bio_19)
+# Ordenar archivos de manera num?rica (bio_1, bio_2, ..., bio_19)
 archivos <- mixedsort(archivos)
 
 variables <- terra::rast(archivos)
@@ -240,7 +247,7 @@ variables <- terra::rast(archivos)
 # A) RECREAR bbox_vect desde tus presencias
 # =========================
 
-# Asegúrate de tener sp_df_AEA en memoria:
+# Aseg?rate de tener sp_df_AEA en memoria:
 stopifnot(exists("sp_df_AEA"))
 
 # Pasa tus puntos a WGS84 (lon/lat)
@@ -257,7 +264,7 @@ lat_max <- max(xy[,2], na.rm = TRUE) + pad_deg
 ext_bbox  <- ext(lon_min, lon_max, lat_min, lat_max)
 bbox_vect <- as.polygons(ext_bbox, crs = "EPSG:4326")
 
-# Verificación rápida
+# Verificaci?n r?pida
 # print(bbox_vect)
 
 
@@ -272,14 +279,14 @@ OUT_ALPHA_TIF  <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO
 
 
 # =========================
-# C) FUNCIÓN ROBUSTA
+# C) FUNCI?N ROBUSTA
 # =========================
 
 process_esri_grid_to_tif <- function(root_dir, clip_geom, out_tif) {
   message("\n== Procesando: ", root_dir, " ==")
   all_dirs <- list.dirs(root_dir, full.names = TRUE, recursive = FALSE)
   
-  # filtra tiles válidos (ignora 'info' y exige archivos de GRID)
+  # filtra tiles v?lidos (ignora 'info' y exige archivos de GRID)
   is_grid_dir <- function(d) {
     if (grepl("[/\\\\]info$", d, ignore.case = TRUE)) return(FALSE)
     files <- try(list.files(d, full.names = TRUE), silent = TRUE)
@@ -289,10 +296,10 @@ process_esri_grid_to_tif <- function(root_dir, clip_geom, out_tif) {
   }
   tiles <- Filter(is_grid_dir, all_dirs)
   
-  # si el root_dir en sí mismo es el GRID (caso alpha), añádelo
+  # si el root_dir en s? mismo es el GRID (caso alpha), a??delo
   if (is_grid_dir(root_dir)) tiles <- c(root_dir, tiles)
   
-  if (length(tiles) == 0) stop("No se encontraron tiles ESRI GRID válidos en: ", root_dir)
+  if (length(tiles) == 0) stop("No se encontraron tiles ESRI GRID v?lidos en: ", root_dir)
   
   cropped_list <- list()
   for (td in tiles) {
@@ -303,13 +310,13 @@ process_esri_grid_to_tif <- function(root_dir, clip_geom, out_tif) {
     
     rc <- try(crop(r, cg), silent = TRUE)
     if (inherits(rc, "try-error") || is.null(rc) || ncell(rc) == 0) {
-      message("    (no cruza el área)"); next
+      message("    (no cruza el ?rea)"); next
     }
-    message("    ??? cruza y se recortó")
+    message("    ??? cruza y se recort?")
     cropped_list[[length(cropped_list) + 1]] <- rc
   }
   
-  if (length(cropped_list) == 0) stop("Ningún tile cruzó el área de recorte para: ", root_dir)
+  if (length(cropped_list) == 0) stop("Ning?n tile cruz? el ?rea de recorte para: ", root_dir)
   
   message("  . Mosaicar/escribir...")
   dir.create(dirname(out_tif), showWarnings = FALSE, recursive = TRUE)
@@ -327,16 +334,16 @@ process_esri_grid_to_tif <- function(root_dir, clip_geom, out_tif) {
 }
 
 # =========================
-# D) EJECUCIÓN
+# D) EJECUCI?N
 # =========================
-# Recomendación: corre primero swc_fr
+# Recomendaci?n: corre primero swc_fr
 process_esri_grid_to_tif(ROOT_SWC_DIR,   bbox_vect, OUT_SWC_TIF)
 # Luego alpha
 process_esri_grid_to_tif(ROOT_ALPHA_DIR, bbox_vect, OUT_ALPHA_TIF)
 
 
 # =========================
-# E) QC RÁPIDO
+# E) QC R?PIDO
 # =========================
 swc <- rast(OUT_SWC_TIF);  alp <- rast(OUT_ALPHA_TIF)
 print(res(swc))   # ~ 0.008333333 (30")
@@ -345,7 +352,7 @@ print(global(swc, fun=c("min","max"), na.rm=TRUE))
 print(global(alp, fun=c("min","max"), na.rm=TRUE))
 
 ############################## CARGANDO .TIF DE SUELOS #####################################
-# Rutas a tus TIF recién creados
+# Rutas a tus TIF reci?n creados
 swc_tif <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/swc_fr/swc_fr_bbox_30s.tif"
 alp_tif <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/ALPHA/alpha_bbox_30s.tif"
 
@@ -356,7 +363,7 @@ tmpl <- variables[[1]]
 swc <- rast(swc_tif)  # humedad del suelo (0-1)
 alp <- rast(alp_tif)  # alpha = AET/PET (0-1)
 
-# 2) Alinear exactamente al grid de 'variables' (mismo CRS, extent, resolución)
+# 2) Alinear exactamente al grid de 'variables' (mismo CRS, extent, resoluci?n)
 to_tmpl <- function(r){
   if (!identical(crs(r), crs(tmpl))) r <- project(r, crs(tmpl), method = "bilinear")
   resample(r, tmpl, method = "bilinear")
@@ -364,8 +371,8 @@ to_tmpl <- function(r){
 swc30 <- to_tmpl(swc)
 alp30 <- to_tmpl(alp)
 
-# 3) Derivar estrés hídrico (más interpretable para el modelo)
-stress30 <- 1 - alp30     # 0 = sin estrés; 1 = máximo estrés
+# 3) Derivar estr?s h?drico (m?s interpretable para el modelo)
+stress30 <- 1 - alp30     # 0 = sin estr?s; 1 = m?ximo estr?s
 
 # 4) Nombres y apilado
 names(swc30)    <- "swc_fr"
@@ -408,25 +415,25 @@ puntos_ecoreg <- terra::extract(variables_ecoreg_mask, sp_vect)
 puntos_ecoreg <- puntos_ecoreg %>% dplyr::select(-ID) #Eliminar la columna ID que genera el desplazamiento
 presencias_ecoreg <- cbind(sp_df, puntos_ecoreg)
 
-# ===== ELIMINAR REGISTROS CON NA EN VARIABLES CLIMÁTICAS =====
-# Detecta automáticamente columnas de bioclimáticas (por nombre)
+# ===== ELIMINAR REGISTROS CON NA EN VARIABLES CLIM?TICAS =====
+# Detecta autom?ticamente columnas de bioclim?ticas (por nombre)
 cols_clima <- grep("bio", names(presencias_ecoreg), value = TRUE, ignore.case = TRUE)
 
 if (length(cols_clima) == 0) {
-  stop("No se encontraron columnas de variables bioclimáticas en presencias_ecoreg.")
+  stop("No se encontraron columnas de variables bioclim?ticas en presencias_ecoreg.")
 }
 
 n_bioclim <- length(cols_clima)
 
-# Eliminar registros donde TODAS las bioclimáticas son NA
+# Eliminar registros donde TODAS las bioclim?ticas son NA
 presencias_ecoreg <- presencias_ecoreg %>%
   filter(rowSums(is.na(across(all_of(cols_clima)))) < n_bioclim)
 
-message("??? Registros válidos conservados: ", nrow(presencias_ecoreg))
+message("??? Registros v?lidos conservados: ", nrow(presencias_ecoreg))
 
 
 # Guardar CSV
-# --- Convertir a data.frame eliminando columnas problemáticas ---
+# --- Convertir a data.frame eliminando columnas problem?ticas ---
 #presencias_ecoreg_clean <- presencias_ecoreg_clean %>%
  # st_drop_geometry() %>%  # elimina columna geometry
   #dplyr::select(-dnaSequenceID, -networkKeys)  # elimina listas
@@ -453,7 +460,7 @@ write.csv2(df_export,
 cat("??? Proceso de ECOREGIONES completado. Filas exportadas:",
     nrow(presencias_ecoreg), "\n")
 
-# ---6.1.5. Verificación visual rápida ---
+# ---6.1.5. Verificaci?n visual r?pida ---
 plot(variables_ecoreg_mask[[1]], main = "BIO1 - Recortado por ecoregiones")
 plot(M_ecoreg_vect, add = TRUE)
 
@@ -498,21 +505,21 @@ if ("ID" %in% colnames(puntos_buffer)) {
 
 presencias_buffer <- cbind(sp_df, puntos_buffer)
 
-# ===== ELIMINAR REGISTROS CON TODAS LAS BIOCLIMÁTICAS EN NA (BUFFER) =====
-# Detecta columnas bioclimáticas de forma flexible
+# ===== ELIMINAR REGISTROS CON TODAS LAS BIOCLIM?TICAS EN NA (BUFFER) =====
+# Detecta columnas bioclim?ticas de forma flexible
 cols_clima <- grep("(^wc2\\.1_30s_)?bio", names(presencias_buffer),
                    value = TRUE, ignore.case = TRUE)
 
 if (length(cols_clima) == 0) {
-  stop("No se encontraron columnas bioclimáticas en 'presencias_buffer'.")
+  stop("No se encontraron columnas bioclim?ticas en 'presencias_buffer'.")
 }
 
 n_bioclim <- length(cols_clima)
 
-# Identificar filas donde TODAS las bioclimáticas son NA
+# Identificar filas donde TODAS las bioclim?ticas son NA
 idx_na_all <- which(rowSums(is.na(presencias_buffer[, cols_clima])) == n_bioclim)
 
-# Filtrar (mantiene las filas con al menos una bioclimática válida)
+# Filtrar (mantiene las filas con al menos una bioclim?tica v?lida)
 presencias_buffer <- presencias_buffer[rowSums(is.na(presencias_buffer[, cols_clima])) < n_bioclim, ]
 
 message("??? BUFFER: registros conservados = ", nrow(presencias_buffer),
@@ -528,11 +535,11 @@ df_export_buffer <- presencias_buffer %>%
     decimalLongitude,
     decimalLatitude,
     dplyr::starts_with("wc2.1_30s_bio_"),
-    dplyr::any_of(c("swc_fr", "stress"))   # <-- añade humedad y estrés
+    dplyr::any_of(c("swc_fr", "stress"))   # <-- a?ade humedad y estr?s
   )
 
 # Exportar limpio
-write.csv2(df_export_buffer,   # usa ; como separador (Excel en español lo abre directo)
+write.csv2(df_export_buffer,   # usa ; como separador (Excel en espa?ol lo abre directo)
            "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/presencias_buffer_limpio.csv",
            row.names = FALSE,
            fileEncoding = "UTF-8")
@@ -540,7 +547,7 @@ write.csv2(df_export_buffer,   # usa ; como separador (Excel en español lo abre 
 
 cat("??? CSV de buffer (50 km) exportado correctamente.\n")
 
-# ---6.2.5. Verificación visual rápida ---
+# ---6.2.5. Verificaci?n visual r?pida ---
 plot(variables_buffer_mask[[1]], main = "BIO1 - Recortado por buffer")
 plot(M_buffer_vect, add = TRUE)
 
@@ -556,9 +563,9 @@ cat("CSV generados en la carpeta 'datos_presencia_gbif'\n")
 # para VIF, SI SE QUIERE PROBAR VARIOS ENFOQUES
 
 ################################################################################
-### PARTE A. REDUCCIÓN DE VARIABLES (VIF + PCA) SEGÚN EL ÁREA DE CALIBRACIÓN ###
+### PARTE A. REDUCCI?N DE VARIABLES (VIF + PCA) SEG?N EL ?REA DE CALIBRACI?N ###
 ################################################################################
-cat("\n=== PARTE A: Reducción de variables ambientales por área de calibración ===\n")
+cat("\n=== PARTE A: Reducci?n de variables ambientales por ?rea de calibraci?n ===\n")
 
 # =============================
 # 1. Detectar stack ambiental activo
@@ -566,37 +573,37 @@ cat("\n=== PARTE A: Reducción de variables ambientales por área de calibración =
 if (exists("variables_ecoreg_mask")) {
   RSTACK <- variables_ecoreg_mask
   M_NAME <- "ecoreg"
-  message(">> Se usará el stack recortado por ECOREGIONES.")
+  message(">> Se usar? el stack recortado por ECOREGIONES.")
 } else if (exists("variables_buffer_mask")) {
   RSTACK <- variables_buffer_mask
   M_NAME <- "buffer"
-  message(">> Se usará el stack recortado por BUFFER 50 km.")
+  message(">> Se usar? el stack recortado por BUFFER 50 km.")
 } else {
-  stop("?????? No se encontró ninguna variable recortada (ni ecoregiones ni buffer). Verifica antes de continuar.")
+  stop("?????? No se encontr? ninguna variable recortada (ni ecoregiones ni buffer). Verifica antes de continuar.")
 }
 
 # =============================
-# 2. Parámetros y carpeta de salida
+# 2. Par?metros y carpeta de salida
 # =============================
 OUT_DIR <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/OUT"
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
-SAMPLE_SIZE <- 10000   # número de píxeles a muestrear
-NCOMP <- 6             # nº de componentes principales
+SAMPLE_SIZE <- 10000   # n?mero de p?xeles a muestrear
+NCOMP <- 6             # n? de componentes principales
 SAMPLE_PATH <- file.path(OUT_DIR, paste0("sample_", M_NAME, "_", SAMPLE_SIZE, ".csv"))
 
 # =============================
 # 3. Funciones auxiliares
 # =============================
 
-# --- 3.1. Muestreo con caché (guarda y reutiliza) ---
+# --- 3.1. Muestreo con cach? (guarda y reutiliza) ---
 sample_with_cache <- function(rstack, n, out_csv) {
   if (file.exists(out_csv)) {
     message(">> Cargando muestra cacheada: ", out_csv)
     samp <- read_csv(out_csv, show_col_types = FALSE)
   } else {
     set.seed(123)
-    message(">> Generando muestra aleatoria de ", n, " píxeles...")
+    message(">> Generando muestra aleatoria de ", n, " p?xeles...")
     samp <- spatSample(rstack, size = n, method = "random", na.rm = TRUE, as.df = TRUE)
     write_csv(samp, out_csv)
     message("??? Muestra guardada: ", out_csv)
@@ -641,15 +648,15 @@ do_pca_blockwise <- function(rstack, ncomp, out_dir, prefix) {
 samp <- sample_with_cache(RSTACK, n = SAMPLE_SIZE, out_csv = SAMPLE_PATH)
 
 # =============================
-# 5. Matriz de correlación
+# 5. Matriz de correlaci?n
 # =============================
 cor_mat <- cor(samp, method = "pearson", use = "complete.obs")
 cor_path <- file.path(OUT_DIR, paste0("correlation_", M_NAME, "_sample.csv"))
 write.csv(cor_mat, cor_path, row.names = TRUE, fileEncoding = "UTF-8")
-message("??? Matriz de correlación guardada: ", cor_path)
+message("??? Matriz de correlaci?n guardada: ", cor_path)
 
 # =============================
-# 6. Selección por VIF (opcional)
+# 6. Selecci?n por VIF (opcional)
 # =============================
 vars_vif_names <- names(RSTACK)
 if (requireNamespace("usdm", quietly = TRUE)) {
@@ -673,7 +680,7 @@ message("??? Stack reducido por VIF guardado: ", vif_path)
 
 message(">> Calculando PCA (compatibilidad moderna con terra >= 1.7)...")
 
-# --- 7.1 Usar la muestra ya creada para correlación/VIF si existe ---
+# --- 7.1 Usar la muestra ya creada para correlaci?n/VIF si existe ---
 SAMPLE_SIZE_PCA <- 50000  # usa 10000 si quieres la misma muestra que VIF
 if (exists("samp")) {
   samp_pca <- samp
@@ -698,7 +705,7 @@ samp_pca <- samp_pca[, names(RSTACK_VIF), drop = FALSE]
 # --- 7.3 PCA con prcomp() sobre la muestra (centrado y escalado) ---
 pca_model <- prcomp(na.omit(samp_pca), center = TRUE, scale. = TRUE)
 
-# --- 7.4 Extraer loadings y preparar proyección raster por bloques ---
+# --- 7.4 Extraer loadings y preparar proyecci?n raster por bloques ---
 loadings     <- pca_model$rotation[, 1:NCOMP, drop = FALSE]  # variables x PCs
 center_vals  <- pca_model$center[names(RSTACK_VIF)]
 scale_vals   <- pca_model$scale[names(RSTACK_VIF)]
@@ -710,7 +717,7 @@ if (nlyr(RSTACK_VIF) != nrow(loadings)) {
   stop("??? Dimensiones no coinciden entre stack y loadings. Revisa orden/nombres.")
 }
 
-# Función segura para aplicar PCA por bloques
+# Funci?n segura para aplicar PCA por bloques
 pca_map_fun <- function(v) {
   # v: matriz [celdas_del_bloque x n_vars] en el mismo orden que names(RSTACK_VIF)
   v_scaled <- sweep(v, 2, center_vals, "-")
@@ -767,8 +774,9 @@ if (!is.na(k_auto) && k_auto >= 1) {
   message(sprintf("??? %s: PCs hasta %.0f%% (k = %d) guardadas en: %s",
                   toupper(M_NAME), 100 * UMBRAL_VAR, k_auto, auto_path))
 } else {
-  message("?????? No se alcanzó el umbral de varianza especificado; no se exportaron PCs 'auto'.")
+  message("?????? No se alcanz? el umbral de varianza especificado; no se exportaron PCs 'auto'.")
 }
+
 
 # =========================
 # 9) Sugerencias para MaxEnt
@@ -779,53 +787,53 @@ message("- Si prefieres componentes (decorrelados): usa '", basename(pca_auto_ti
 message("- Revisa 'PCA_variance_explained.csv' y 'PCA_loadings.csv' para elegir PCs y entender sus ejes.")
 
 ################################################################################
-### BLOQUE 8bis. ANÁLISIS VISUAL Y ESTADÍSTICO DEL PCA #########################
+### BLOQUE 8bis. AN?LISIS VISUAL Y ESTAD?STICO DEL PCA #########################
 ################################################################################
 library(ggplot2)
 library(reshape2)
 library(viridis)
 
-cat("\n=== BLOQUE 8bis: Visualización del PCA y soporte estadístico ===\n")
+cat("\n=== BLOQUE 8bis: Visualizaci?n del PCA y soporte estad?stico ===\n")
 
-# --- 1. Gráfico Scree Plot (Varianza explicada por componente) ---
+# --- 1. Gr?fico Scree Plot (Varianza explicada por componente) ---
 pca_var_df <- data.frame(
   PC = paste0("PC", seq_along(sdev)),
   VarExplained = var_exp,
   CumVar = cum_var
 )
 
-# Crear el gráfico
+# Crear el gr?fico
 p_scree <- ggplot(pca_var_df, aes(x = PC, y = VarExplained)) +
   geom_bar(stat = "identity", fill = "#3182bd") +
   geom_line(aes(y = CumVar), group = 1, color = "#e6550d", linewidth = 1) +
   geom_point(aes(y = CumVar), color = "#e6550d", size = 2) +
   theme_minimal(base_size = 12) +
   labs(title = paste("Varianza explicada - PCA (", toupper(M_NAME), ")", sep = ""),
-       y = "Proporción de varianza", x = "Componente principal")
+       y = "Proporci?n de varianza", x = "Componente principal")
 
 # Mostrar en pantalla (opcional)
 print(p_scree)
 
-# Guardar el gráfico
+# Guardar el gr?fico
 ggsave(
   filename = file.path(OUT_DIR, paste0(M_NAME, "_PCA_screeplot.png")),
   plot = p_scree,
   width = 8, height = 5, dpi = 300
 )
 
-# --- 2. Heatmap de cargas (qué variables dominan cada PC) ---
+# --- 2. Heatmap de cargas (qu? variables dominan cada PC) ---
 load_df <- as.data.frame(loadings[, 1:NCOMP, drop = FALSE])
 load_df$Variable <- rownames(load_df)
 load_melt <- reshape2::melt(load_df, id.vars = "Variable", variable.name = "PC", value.name = "Loading")
 
-# Opcional: usar magnitud (abs) si prefieres resaltar contribución
+# Opcional: usar magnitud (abs) si prefieres resaltar contribuci?n
 # load_melt$Loading <- abs(load_melt$Loading)
 
 # Ordenar ejes para que salgan en el orden correcto
 load_melt$PC <- factor(load_melt$PC, levels = colnames(loadings))
 load_melt$Variable <- factor(load_melt$Variable, levels = rev(sort(unique(load_melt$Variable))))
 
-# 2) Crear el gráfico
+# 2) Crear el gr?fico
 p_heat <- ggplot(load_melt, aes(x = PC, y = Variable, fill = Loading)) +
   geom_tile() +
   scale_fill_viridis(option = "A", name = "Carga") +
@@ -844,12 +852,12 @@ ggsave(
   plot = p_heat, width = 7, height = 6, dpi = 300
 )
 
-# --- 3. Biplot (relación entre variables y componentes) ---
+# --- 3. Biplot (relaci?n entre variables y componentes) ---
 biplot_path <- file.path(OUT_DIR, paste0(M_NAME, "_PCA_biplot.png"))
 png(biplot_path, width = 800, height = 600)
 biplot(pca_model, main = paste("Biplot PCA -", toupper(M_NAME)))
 dev.off()
-cat("??? Gráficos del PCA guardados en:", OUT_DIR, "\n")
+cat("??? Gr?ficos del PCA guardados en:", OUT_DIR, "\n")
 
 ################################################################################
 ### BLOQUE FINAL. EXPORTAR INSUMOS PARA WALLACE + RESUMEN VISUAL ###############
@@ -860,13 +868,13 @@ dir.create(file.path(BASE_WALLACE_DIR, "presence"), recursive = TRUE, showWarnin
 dir.create(file.path(BASE_WALLACE_DIR, "variables"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(BASE_WALLACE_DIR, "area"),      recursive = TRUE, showWarnings = FALSE)
 
-# ---- Área que deseas exportar (ajusta si trabajas con buffer) ----
+# ---- ?rea que deseas exportar (ajusta si trabajas con buffer) ----
 M_NAME <- "ecoreg"   # o "buffer"
 #M_NAME <- "buffer"
 
 # === 1) PRESENCIAS ===
 pres_df <- if (M_NAME == "buffer" && exists("presencias_buffer")) presencias_buffer else presencias_ecoreg
-if (!exists("pres_df") || is.null(pres_df)) pres_df <- sp_df  # respaldo mínimo
+if (!exists("pres_df") || is.null(pres_df)) pres_df <- sp_df  # respaldo m?nimo
 
 stopifnot(all(c("scientificName","decimalLongitude","decimalLatitude") %in% names(pres_df)))
 
@@ -893,7 +901,7 @@ vars_src <- if (length(cand_auto)) cand_auto[which.max(file.mtime(cand_auto))] e
   if (length(cand_full)) cand_full[which.max(file.mtime(cand_full))] else
     if (length(cand_vif))  cand_vif[which.max(file.mtime(cand_vif))]  else NA
 
-if (is.na(vars_src)) stop("No encontré TIFs de variables en OUT_DIR para '", M_NAME, "'. ¿PCA/VIF ya corrió?")
+if (is.na(vars_src)) stop("No encontr? TIFs de variables en OUT_DIR para '", M_NAME, "'. ?PCA/VIF ya corri??")
 
 # 2) Cargar raster y descartar bio3/bio7 si existen
 preds <- terra::rast(vars_src)
@@ -907,7 +915,7 @@ vars_tgt <- file.path(BASE_WALLACE_DIR, "variables", paste0("predictors_", M_NAM
 terra::writeRaster(preds, vars_tgt, overwrite = TRUE)
 message("??? Variables (multibanda sin bio3/bio7) ??? ", vars_tgt)
 
-# 4) Exportar también "por capas" (un .tif por variable/PC)
+# 4) Exportar tambi?n "por capas" (un .tif por variable/PC)
 nm <- gsub("[^A-Za-z0-9_]", "_", names(preds))
 nm <- make.unique(nm)
 names(preds) <- nm
@@ -924,7 +932,7 @@ for (i in 1:terra::nlyr(preds)) {
 }
 message("??? Variables por capa (sin bio3/bio7) ??? ", vars_dir_layers)
 
-# === 3) ÁREA (shapefile) ===
+# === 3) ?REA (shapefile) ===
 area_src <- if (M_NAME == "buffer") {
   "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_buffer50km.shp"
 } else {
@@ -938,33 +946,33 @@ area_tgt <- file.path(BASE_WALLACE_DIR, "area", paste0("area_", M_NAME, ".shp"))
 # limpia shapefiles previos con mismo prefijo
 invisible(file.remove(list.files(dirname(area_tgt), pattern = paste0("^area_", M_NAME, "\\."), full.names = TRUE)))
 st_write(area_wgs, area_tgt, delete_layer = TRUE, quiet = TRUE)
-message("??? Área      ??? ", area_tgt)
+message("??? ?rea      ??? ", area_tgt)
 
 # === 4) RESUMEN VISUAL (robusto) ===
-# cierra dispositivos gráficos "colgados"
+# cierra dispositivos gr?ficos "colgados"
 while (dev.cur() > 1) dev.off()
 
 predictors_r <- rast(vars_tgt)
 presence_r   <- read.csv(pres_csv)
 area_r       <- st_read(area_tgt, quiet = TRUE)
 
-# reproyecta área al CRS del raster si hace falta
+# reproyecta ?rea al CRS del raster si hace falta
 if (!identical(st_crs(area_r)$wkt, as.character(crs(predictors_r)))) {
   area_r <- st_transform(area_r, crs(predictors_r))
 }
 
-# gráfico rápido
+# gr?fico r?pido
 plot(predictors_r[[1]], main = paste("Resumen de insumos Wallace -", toupper(M_NAME)))
 plot(st_geometry(area_r), add = TRUE, border = "black", lwd = 1.2)
 points(presence_r$decimalLongitude, presence_r$decimalLatitude, col = "red", pch = 20, cex = 0.6)
-legend("bottomleft", legend = c("Presencias", "Área M"), col = c("red", "black"),
+legend("bottomleft", legend = c("Presencias", "?rea M"), col = c("red", "black"),
        pch = c(20, NA), lty = c(NA, 1), bty = "n")
 
 cat("\n??? Insumos listos para Wallace en:", BASE_WALLACE_DIR, "\n")
 
 wallace_vars <- rast("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/WALLACE_INPUTS/variables/predictors_ecoreg.tif")
 
-# Ver información general
+# Ver informaci?n general
 wallace_vars
 names(wallace_vars)
 
