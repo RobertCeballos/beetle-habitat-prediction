@@ -2,8 +2,9 @@
 
 # Definir la ruta base 
 oficina_path <- "D:/Usuario/Desktop/ROBERTO_CEBALLOS/MaestrÃ­a/SEMESTRE III/PROYECTO INTEGRADOR/"
+robert_path <- "C:/Users/rober/Documents/MAESTRIA/PROYECTO INTEGRADOR/REPOSITORIO"
 mayra_path <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/"
-base_path <- oficina_path;
+base_path <- robert_path;
 
 setwd(base_path)
 
@@ -27,7 +28,7 @@ library(stats)
 ################# 1. Obtenci?n de registros biol?gicos ############################
 
 # carga de datos y obtenci?n de la lista de especies (Giraldo et al. 2018)
-lista_sp <- read_excel("./ganaderos_lista.xlsx", sheet="species")
+lista_sp <- read_excel("./DATOS PRESENCIA/ganaderos_lista.xlsx", sheet="species")
 lista_sp <- subset(lista_sp, lista_sp$taxonRank =="species")
 lista_sp <- sort(unique(lista_sp$scientificName, decreasing = FALSE))
 
@@ -47,7 +48,7 @@ search_synonyms <- function(sp) {
 synonym_search <- lapply(lista_sp, search_synonyms)
 all_synonyms <- bind_rows(synonym_search)
 #saveRDS(all_synonyms, "all_synonyms.rds") # guardar los sinÃ³nimos en RDS
-all_synonyms <- readRDS("all_synonyms.rds") # cargar los datos para el siguiente procesamientos
+all_synonyms <- readRDS("DATOS PRESENCIA/all_synonyms.rds") # cargar los datos para el siguiente procesamientos
 # union de listas de especies (Giraldo et al. 2018) y sinÃ³nimos (GBIF)
 synonym_list <- unique(sort(all_synonyms$canonicalName))
 all_taxa <- sort(unique(c(lista_sp, synonym_list)))
@@ -63,7 +64,7 @@ data_list <- lapply(result, function(x) if (!is.null(x$data)) x$data else NULL)
 data_list <- Filter(Negate(is.null), data_list) 
 records <- bind_rows(data_list, .id = "scientificName")
 # saveRDS(records, "GBIF_2025-03-23.rds")# activar para guardar el archivo en RDS
-records <- readRDS("GBIF_2025-03-23.rds") # cargar el archivo para el siguiente proceso
+records <- readRDS("DATOS PRESENCIA/GBIF_2025-03-23.rds") # cargar el archivo para el siguiente proceso
 
 # ActualizaciÃ³n del nombre de las especies segÃºn GBIF Backbone Taxonomy
 canonical_names <- all_synonyms$canonicalName[match(records$scientificName, all_synonyms$canonicalName)]
@@ -111,7 +112,7 @@ sp <- sp[!is.na(sp$coordinates) & !duplicated(sp[c("scientificName", "coordinate
 
 ###################### CARGAR ARCHIVO DE ELEVACIONES ####################### 
 ############################################################################
-elev_sf <- readRDS("./elev_ALOS.rds")
+elev_sf <- readRDS("./DATOS PRESENCIA/elev_ALOS.rds")
 
 # Revisar nombres de columnas
 print(names(elev_sf))  # Debe incluir "elev_ALOS"
@@ -271,12 +272,13 @@ bbox_vect <- as.polygons(ext_bbox, crs = "EPSG:4326")
 # =========================
 # B) RUTAS PARA CARGA DE ARCHIVOS Y SALIDA
 # =========================
-ROOT_SWC_DIR   <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/swc_fr"
-ROOT_ALPHA_DIR <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/ALPHA"
+# Directorios raíz
+ROOT_SWC_DIR   <- file.path(base_path, "SUELO", "swc_fr")
+ROOT_ALPHA_DIR <- file.path(base_path, "SUELO", "ALPHA")
 
-OUT_SWC_TIF    <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/swc_fr/swc_fr_bbox_30s.tif"
-OUT_ALPHA_TIF  <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/ALPHA/alpha_bbox_30s.tif"
-
+# Archivos de salida
+OUT_SWC_TIF    <- file.path(ROOT_SWC_DIR, "swc_fr_bbox_30s.tif")
+OUT_ALPHA_TIF  <- file.path(ROOT_ALPHA_DIR, "alpha_bbox_30s.tif")
 
 # =========================
 # C) FUNCI?N ROBUSTA
@@ -353,8 +355,8 @@ print(global(alp, fun=c("min","max"), na.rm=TRUE))
 
 ############################## CARGANDO .TIF DE SUELOS #####################################
 # Rutas a tus TIF reci?n creados
-swc_tif <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/swc_fr/swc_fr_bbox_30s.tif"
-alp_tif <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/ALPHA/alpha_bbox_30s.tif"
+swc_tif <- file.path(base_path, "SUELO", "swc_fr", "swc_fr_bbox_30s.tif")
+alp_tif <- file.path(base_path, "SUELO", "ALPHA", "alpha_bbox_30s.tif")
 
 # 0) Plantilla: usa la malla/extent/CRS de tu stack 'variables' (WorldClim 30")
 tmpl <- variables[[1]]
@@ -362,6 +364,12 @@ tmpl <- variables[[1]]
 # 1) Leer
 swc <- rast(swc_tif)  # humedad del suelo (0-1)
 alp <- rast(alp_tif)  # alpha = AET/PET (0-1)
+
+# --- Normalizar alpha para evitar overflow (escala 0-1) ---
+alp <- alp / 100
+
+# Verificación rápida
+print(global(alp, fun = c("min", "max", "mean"), na.rm = TRUE))
 
 # 2) Alinear exactamente al grid de 'variables' (mismo CRS, extent, resoluci?n)
 to_tmpl <- function(r){
@@ -371,12 +379,17 @@ to_tmpl <- function(r){
 swc30 <- to_tmpl(swc)
 alp30 <- to_tmpl(alp)
 
+alp30 <- crop(alp30, ext(variables))
+
 # 3) Derivar estr?s h?drico (m?s interpretable para el modelo)
 stress30 <- 1 - alp30     # 0 = sin estr?s; 1 = m?ximo estr?s
+swc30 <- extend(swc30, ext(variables))
+stress30 <- extend(stress30, ext(variables))
 
 # 4) Nombres y apilado
 names(swc30)    <- "swc_fr"
 names(stress30) <- "stress"
+
 variables <- c(variables, swc30, stress30)  # <-- ahora 'variables' incluye 2 capas nuevas
 
 ####################################### FIN ###################################################
@@ -388,7 +401,7 @@ cat("\n=== BLOQUE 6.1: Procesamiento por ECOREGIONES ===\n")
 
 # --- 6.1.1. Cargar M de ecoregiones ---
 M_ecoreg <- st_read(
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_ecoregiones.shp"
+  file.path(base_path, "beetle-habitat-prediction", "datos_presencia_gbif", "AREAS_CALIBRACION", "M_ecoregiones.shp")
 )
 M_ecoreg_vect <- vect(M_ecoreg)
 M_ecoreg_vect <- terra::project(M_ecoreg_vect, crs(variables))  # Asegurar CRS
@@ -398,13 +411,20 @@ variables_ecoreg_crop <- crop(variables, M_ecoreg_vect)
 variables_ecoreg_mask <- mask(variables_ecoreg_crop, M_ecoreg_vect)
 
 # ---6.1.3. Guardar capas recortadas ---
-dir.create("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_ecoregiones", showWarnings = FALSE, recursive = TRUE)
+dir.create(
+  file.path(base_path, "beetle-habitat-prediction", "datos_presencia_gbif", "variables_M_ecoregiones"),
+  showWarnings = FALSE,
+  recursive = TRUE
+)
 
 terra::writeRaster(
   variables_ecoreg_mask,
-  filename = paste0(
-    "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_ecoregiones/",
-    names(variables_ecoreg_mask), ".tif"
+  filename = file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "variables_M_ecoregiones",
+    paste0(names(variables_ecoreg_mask), ".tif")
   ),
   overwrite = TRUE
 )
@@ -471,8 +491,15 @@ cat("\n=== BLOQUE 6.2: Procesamiento por BUFFER 50 km ===\n")
 
 # ---6.2.1. Cargar M de buffer ---
 M_buffer <- st_read(
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_buffer50km.shp"
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "AREAS_CALIBRACION",
+    "M_buffer50km.shp"
+  )
 )
+
 M_buffer_vect <- vect(M_buffer)
 M_buffer_vect <- terra::project(M_buffer_vect, crs(variables))  # Asegurar CRS
 
@@ -482,15 +509,24 @@ variables_buffer_mask <- terra::mask(variables_buffer_crop, M_buffer_vect)
 
 # ---6.2.3. Guardar capas recortadas ---
 dir.create(
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_buffer",
-  showWarnings = FALSE, recursive = TRUE
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "variables_M_buffer"
+  ),
+  showWarnings = FALSE,
+  recursive = TRUE
 )
 
 terra::writeRaster(
   variables_buffer_mask,
-  filename = paste0(
-    "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/variables_M_buffer/",
-    names(variables_buffer_mask), ".tif"
+  filename = file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "variables_M_buffer",
+    paste0(names(variables_buffer_mask), ".tif")
   ),
   overwrite = TRUE
 )
@@ -539,11 +575,17 @@ df_export_buffer <- presencias_buffer %>%
   )
 
 # Exportar limpio
-write.csv2(df_export_buffer,   # usa ; como separador (Excel en espa?ol lo abre directo)
-           "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/presencias_buffer_limpio.csv",
-           row.names = FALSE,
-           fileEncoding = "UTF-8")
-
+write.csv2(
+  df_export_buffer,  # usa ; como separador (Excel en español lo abre directo)
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "presencias_buffer_limpio.csv"
+  ),
+  row.names = FALSE,
+  fileEncoding = "UTF-8"
+)
 
 cat("??? CSV de buffer (50 km) exportado correctamente.\n")
 
@@ -585,7 +627,7 @@ if (exists("variables_ecoreg_mask")) {
 # =============================
 # 2. Par?metros y carpeta de salida
 # =============================
-OUT_DIR <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/OUT"
+OUT_DIR <- file.path(base_path, "SUELO", "OUT")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 SAMPLE_SIZE <- 10000   # n?mero de p?xeles a muestrear
@@ -863,7 +905,7 @@ cat("??? Gr?ficos del PCA guardados en:", OUT_DIR, "\n")
 ### BLOQUE FINAL. EXPORTAR INSUMOS PARA WALLACE + RESUMEN VISUAL ###############
 ################################################################################
 
-BASE_WALLACE_DIR <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/WALLACE_INPUTS"
+BASE_WALLACE_DIR <- file.path(base_path, "beetle-habitat-prediction", "WALLACE_INPUTS")
 dir.create(file.path(BASE_WALLACE_DIR, "presence"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(BASE_WALLACE_DIR, "variables"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(BASE_WALLACE_DIR, "area"),      recursive = TRUE, showWarnings = FALSE)
@@ -891,7 +933,7 @@ write.csv(pres_export, pres_csv, row.names = FALSE)
 message("??? Presencias ??? ", pres_csv)
 
 # === 2) VARIABLES (elige mejor stack disponible, sin bio3/bio7) ===
-OUT_DIR <- "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/SUELO/OUT"
+OUT_DIR <- file.path(base_path, "SUELO", "OUT")
 cand_auto <- list.files(OUT_DIR, pattern = paste0("^", M_NAME, "_PCA_components_auto_\\d+PCs\\.tif$"), full.names = TRUE)
 cand_full <- list.files(OUT_DIR, pattern = paste0("^", M_NAME, "_PCA_components_\\d+\\.tif$"),       full.names = TRUE)
 cand_vif  <- list.files(OUT_DIR, pattern = paste0("^variables_", M_NAME, "_reducidas_VIF\\.tif$"),   full.names = TRUE)
@@ -934,9 +976,21 @@ message("??? Variables por capa (sin bio3/bio7) ??? ", vars_dir_layers)
 
 # === 3) ?REA (shapefile) ===
 area_src <- if (M_NAME == "buffer") {
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_buffer50km.shp"
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "AREAS_CALIBRACION",
+    "M_buffer50km.shp"
+  )
 } else {
-  "C:/Users/usuario/Documents/Posgrado/Proyecto integrador/REPOSITORIO/beetle-habitat-prediction/datos_presencia_gbif/AREAS_CALIBRACION/M_ecoregiones.shp"
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "datos_presencia_gbif",
+    "AREAS_CALIBRACION",
+    "M_ecoregiones.shp"
+  )
 }
 stopifnot(file.exists(area_src))
 area_sf <- st_read(area_src, quiet = TRUE) |> st_make_valid()
@@ -970,8 +1024,15 @@ legend("bottomleft", legend = c("Presencias", "?rea M"), col = c("red", "black")
 
 cat("\n??? Insumos listos para Wallace en:", BASE_WALLACE_DIR, "\n")
 
-wallace_vars <- rast("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/WALLACE_INPUTS/variables/predictors_ecoreg.tif")
-
+wallace_vars <- rast(
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "WALLACE_INPUTS",
+    "variables",
+    "predictors_ecoreg.tif"
+  )
+)
 # Ver informaci?n general
 wallace_vars
 names(wallace_vars)
@@ -982,7 +1043,15 @@ plot(wallace_vars[[1]], main = names(wallace_vars)[1])
 ##########Solo para pruebas, luego se puede borrar###############################
 ##Validando cantidad de variables en el raste de variables ambientales###
 library(terra)
-r <- rast("C:/Users/usuario/Documents/Posgrado/Proyecto integrador/WALLACE_INPUTS/variables/predictors_ecoreg.tif")
+r <- rast(
+  file.path(
+    base_path,
+    "beetle-habitat-prediction",
+    "WALLACE_INPUTS",
+    "variables",
+    "predictors_ecoreg.tif"
+  )
+)
 nlyr(r)
 names(r)
 
